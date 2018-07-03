@@ -10,6 +10,7 @@ module BBCode
 
     def convert
       @list_stack = []
+      @ignore_node_count = 0
       @markdown = ""
 
       @reader.each { |node| visit(node) }
@@ -29,7 +30,7 @@ module BBCode
     end
 
     def visit__text(node)
-      return if @ignore_node
+      return if @ignore_node_count > 0
 
       if @within_code_block
         @code << text(node)
@@ -110,23 +111,32 @@ module BBCode
       end
     end
 
+    def visit_IMG(node)
+      ignore_node(node)
+      @markdown << "![](#{node.attribute('src')})" if start?(node)
+    end
+
     # node for "BBCode start tag"
     def visit_s(node)
-      @ignore_node = start?(node)
+      ignore_node(node)
     end
 
     # node for "BBCode end tag"
     def visit_e(node)
-      @ignore_node = start?(node)
+      ignore_node(node)
     end
 
     # node for "ignored text"
     def visit_i(node)
-      @ignore_node = start?(node)
+      ignore_node(node)
     end
 
     def start?(node)
       node.node_type == Nokogiri::XML::Reader::TYPE_ELEMENT
+    end
+
+    def ignore_node(node)
+      @ignore_node_count += start?(node) ? 1 : -1
     end
 
     def text(node)

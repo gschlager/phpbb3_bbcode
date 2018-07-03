@@ -154,4 +154,17 @@ RSpec.describe BBCode::XmlToMarkdown do
       MD
     end
   end
+
+  context "images" do
+    it "converts image" do
+      xml = <<~XML
+        <r><IMG src="https://example.com/foo.png"><s>[img]</s>
+        <URL url="https://example.com/foo.png">
+        <LINK_TEXT text="https://example.com/foo.png">https://example.com/foo.png</LINK_TEXT>
+        </URL><e>[/img]</e></IMG></r>
+      XML
+
+      expect(convert(xml)).to eq('![](https://example.com/foo.png)')
+    end
+  end
 end
