@@ -32,7 +32,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       expect(convert(xml)).to eq('`one line of code`')
     end
 
-    it "converts multi line code blocks" do
+    it "converts multi-line code blocks" do
       xml = <<~XML
         <r><CODE><s>[code]</s><i>
         </i> /\_/\
@@ -61,7 +61,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         <e>[/list]</e></LIST></r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD)
+      expect(convert(xml)).to eq(<<~MD.strip)
         * Red
         * Blue
         * Yellow
@@ -77,7 +77,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         <e>[/list]</e></LIST></r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD)
+      expect(convert(xml)).to eq(<<~MD.strip)
         1. Go to the shops
         2. Buy a new computer
         3. Swear at computer when it crashes
@@ -93,7 +93,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         <e>[/list]</e></LIST></r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD)
+      expect(convert(xml)).to eq(<<~MD.strip)
         1. The first possible answer
         2. The second possible answer
         3. The third possible answer
@@ -119,6 +119,38 @@ RSpec.describe BBCode::XmlToMarkdown do
         * Yellow
 
         bar
+      MD
+    end
+
+    it "converts nested lists" do
+      xml = <<~XML
+        <r><LIST><s>[list]</s>
+        <LI><s>[*]</s>Option 1
+           <LIST><s>[list]</s>
+              <LI><s>[*]</s>Option 1.1</LI>
+              <LI><s>[*]</s>Option 1.2</LI>
+           <e>[/list]</e></LIST></LI>
+        <LI><s>[*]</s>Option 2
+           <LIST><s>[list]</s>
+              <LI><s>[*]</s>Option 2.1
+                 <LIST type="decimal"><s>[list=1]</s>
+                    <LI><s>[*]</s> Red</LI>
+                    <LI><s>[*]</s> Blue</LI>
+                 <e>[/list]</e></LIST></LI>
+              <LI><s>[*]</s>Option 2.2</LI>
+           <e>[/list]</e></LIST></LI>
+        <e>[/list]</e></LIST></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.strip)
+        * Option 1
+          * Option 1.1
+          * Option 1.2
+        * Option 2
+          * Option 2.1
+            1. Red
+            2. Blue
+          * Option 2.2
       MD
     end
   end

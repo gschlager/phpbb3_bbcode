@@ -3,7 +3,9 @@ require 'nokogiri'
 module BBCode
   class XmlToMarkdown
     def initialize(xml)
-      @reader = Nokogiri::XML::Reader(xml)
+      @reader = Nokogiri::XML::Reader(xml) do |config|
+        config.noblanks
+      end
     end
 
     def convert
@@ -11,7 +13,7 @@ module BBCode
       @markdown = ""
 
       @reader.each { |node| visit(node) }
-      @markdown
+      @markdown.rstrip
     end
 
     protected
@@ -33,7 +35,13 @@ module BBCode
         @code << text(node)
       else
         text = text(node)
-        @markdown << text unless @markdown.empty? && text.strip.empty?
+
+        if @markdown.empty?
+          @markdown << text unless text.strip.empty?
+        else
+          @markdown << text.strip
+          @markdown << "\n" if text.match?(/\n\s*\z/)
+        end
       end
     end
 
@@ -69,27 +77,37 @@ module BBCode
 
     def visit_LIST(node)
       if start?(node)
+        add_new_line_around_list
+
         @list_stack << {
             unordered: node.attribute('type').nil?,
             item_count: 0
         }
       else
         @list_stack.pop
+        add_new_line_around_list
       end
     end
 
+    def add_new_line_around_list
+      return if @markdown.empty?
+      @markdown << "\n" unless @markdown.end_with?("\n") && @list_stack.size > 0
+    end
+
     def visit_LI(node)
-      return unless start?(node)
+      if start?(node)
+        list = @list_stack.last
+        depth = @list_stack.size - 1
 
-      list = @list_stack.last
-      depth = @list_stack.size - 1
+        list[:item_count] += 1
 
-      list[:item_count] += 1
+        indentation = ' ' * 2 * depth
+        symbol = list[:unordered] ? '*' : "#{list[:item_count]}."
 
-      indentation = ' ' * 2 * depth
-      symbol = list[:unordered] ? '*' : "#{list[:item_count]}."
-
-      @markdown << "#{indentation}#{symbol} "
+        @markdown << "#{indentation}#{symbol} "
+      else
+        @markdown << "\n" unless @markdown.end_with?("\n")
+      end
     end
 
     # node for "BBCode start tag"
