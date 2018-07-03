@@ -7,7 +7,9 @@ module BBCode
     end
 
     def convert
+      @list_stack = []
       @markdown = ""
+
       @reader.each { |node| visit(node) }
       @markdown
     end
@@ -28,9 +30,10 @@ module BBCode
       return if @ignore_node
 
       if @within_code_block
-        @code << node.outer_xml
+        @code << text(node)
       else
-        @markdown << node.outer_xml
+        text = text(node)
+        @markdown << text unless @markdown.empty? && text.strip.empty?
       end
     end
 
@@ -51,8 +54,6 @@ module BBCode
         @within_code_block = true
         @code = ''
       else
-        @code = CGI.unescapeHTML(@code)
-
         if @code.include?("\n")
           @code.sub!(/\A[\n\r]*/, '')
           @code.rstrip!
@@ -64,6 +65,31 @@ module BBCode
         @within_code_block = false
         @code = nil
       end
+    end
+
+    def visit_LIST(node)
+      if start?(node)
+        @list_stack << {
+            unordered: node.attribute('type').nil?,
+            item_count: 0
+        }
+      else
+        @list_stack.pop
+      end
+    end
+
+    def visit_LI(node)
+      return unless start?(node)
+
+      list = @list_stack.last
+      depth = @list_stack.size - 1
+
+      list[:item_count] += 1
+
+      indentation = ' ' * 2 * depth
+      symbol = list[:unordered] ? '*' : "#{list[:item_count]}."
+
+      @markdown << "#{indentation}#{symbol} "
     end
 
     # node for "BBCode start tag"
@@ -83,6 +109,10 @@ module BBCode
 
     def start?(node)
       node.node_type == Nokogiri::XML::Reader::TYPE_ELEMENT
+    end
+
+    def text(node)
+      CGI.unescapeHTML(node.outer_xml)
     end
   end
 end
