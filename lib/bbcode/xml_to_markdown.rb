@@ -10,6 +10,7 @@ module BBCode
 
     def convert
       @list_stack = []
+      @element_stack = []
       @ignore_node_count = 0
       @markdown = ""
 
@@ -21,12 +22,11 @@ module BBCode
 
     def visit(node)
       visitor = "visit_#{node.name.gsub(/\W/, '_')}"
+      is_start_element = start?(node)
 
-      if respond_to?(visitor, include_all: true)
-        send(visitor, node)
-      else
-        puts visitor unless visitor == 'visit_r'
-      end
+      @element_stack.pop if !is_start_element && @element_stack.last == node.name
+      send(visitor, node) if respond_to?(visitor, include_all: true)
+      @element_stack << node.name if is_start_element
     end
 
     def visit__text(node)
@@ -114,6 +114,16 @@ module BBCode
     def visit_IMG(node)
       ignore_node(node)
       @markdown << "![](#{node.attribute('src')})" if start?(node)
+    end
+
+    def visit_URL(node)
+      return if @element_stack.last == 'IMG'
+
+      if start?(node)
+        @markdown << '['
+      else
+        @markdown << "](#{node.attribute('url')})"
+      end
     end
 
     # node for "BBCode start tag"
