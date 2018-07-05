@@ -36,12 +36,17 @@ module BBCode
         @code << text(node)
       else
         text = text(node)
+        trimmed_text = text.strip
 
-        if @markdown.empty?
-          @markdown << text unless text.strip.empty?
-        else
-          @markdown << text.strip
-          @markdown << "\n" if text.match?(/\n\s*\z/)
+        return if @url && @url == trimmed_text
+
+        add_link do
+          if @markdown.empty?
+            @markdown << text unless trimmed_text.empty?
+          else
+            @markdown << trimmed_text
+            @markdown << "\n" if text.match?(/\n\s*\z/)
+          end
         end
       end
     end
@@ -113,17 +118,25 @@ module BBCode
 
     def visit_IMG(node)
       ignore_node(node)
-      @markdown << "![](#{node.attribute('src')})" if start?(node)
+
+      add_link do
+        @markdown << "![](#{node.attribute('src')})" if start?(node)
+      end
     end
 
     def visit_URL(node)
       return if @element_stack.last == 'IMG'
 
       if start?(node)
-        @markdown << '['
+        @url = node.attribute('url')
       else
-        @markdown << "](#{node.attribute('url')})"
+        @markdown << @url if @url
+        @url = nil
       end
+    end
+
+    def visit_EMAIL(node)
+      @markdown << (start?(node) ? '<' : '>')
     end
 
     # node for "BBCode start tag"
@@ -151,6 +164,15 @@ module BBCode
 
     def text(node)
       CGI.unescapeHTML(node.outer_xml)
+    end
+
+    def add_link
+      @markdown << '[' if @url
+
+      yield
+
+      @markdown << "](#{@url})" if @url
+      @url = nil
     end
   end
 end

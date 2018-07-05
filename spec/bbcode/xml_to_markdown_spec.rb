@@ -178,4 +178,42 @@ RSpec.describe BBCode::XmlToMarkdown do
       expect(convert(xml)).to eq('[![](https://example.com/foo.png)](https://example.com/)')
     end
   end
+
+  context "links" do
+    it "converts links created without BBCode" do
+      xml = '<r><URL url="https://en.wikipedia.org/wiki/Capybara">https://en.wikipedia.org/wiki/Capybara</URL></r>'
+      expect(convert(xml)).to eq('https://en.wikipedia.org/wiki/Capybara')
+    end
+
+    it "converts links created with BBCode" do
+      xml = '<r><URL url="https://en.wikipedia.org/wiki/Capybara"><s>[url]</s>https://en.wikipedia.org/wiki/Capybara<e>[/url]</e></URL></r>'
+      expect(convert(xml)).to eq('https://en.wikipedia.org/wiki/Capybara')
+    end
+
+    it "converts links with link text" do
+      xml = '<r><URL url="https://en.wikipedia.org/wiki/Capybara"><s>[url=https://en.wikipedia.org/wiki/Capybara]</s>Capybara<e>[/url]</e></URL></r>'
+      expect(convert(xml)).to eq('[Capybara](https://en.wikipedia.org/wiki/Capybara)')
+    end
+
+    it "converts email links created without BBCode" do
+      xml = '<r><EMAIL email="foo.bar@example.com">foo.bar@example.com</EMAIL></r>'
+      expect(convert(xml)).to eq('<foo.bar@example.com>')
+    end
+
+    it "converts email links created with BBCode" do
+      xml = '<r><EMAIL email="foo.bar@example.com"><s>[email]</s>foo.bar@example.com<e>[/email]</e></EMAIL></r>'
+      expect(convert(xml)).to eq('<foo.bar@example.com>')
+    end
+
+    it "converts truncated, long links" do
+      xml = <<~XML
+        <r><URL url="http://answers.yahoo.com/question/index?qid=20070920134223AAkkPli">
+        <s>[url]</s><LINK_TEXT text="http://answers.yahoo.com/question/index ... 223AAkkPli">
+        http://answers.yahoo.com/question/index?qid=20070920134223AAkkPli</LINK_TEXT>
+        <e>[/url]</e></URL></r>
+      XML
+
+      expect(convert(xml)).to eq('http://answers.yahoo.com/question/index?qid=20070920134223AAkkPli')
+    end
+  end
 end
