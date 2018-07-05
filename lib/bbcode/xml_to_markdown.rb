@@ -36,17 +36,13 @@ module BBCode
         @code << text(node)
       else
         text = text(node)
-        trimmed_text = text.strip
 
-        return if @url && @url == trimmed_text
-
-        add_link do
-          if @markdown.empty?
-            @markdown << text unless trimmed_text.empty?
-          else
-            @markdown << trimmed_text
-            @markdown << "\n" if text.match?(/\n\s*\z/)
-          end
+        if @markdown.empty?
+          @markdown << text unless text.strip.empty?
+        else
+          trailing_newline_removed = text.sub!(/\n\s*\z/, '')
+          @markdown << text.lstrip
+          @markdown << "\n" if trailing_newline_removed
         end
       end
     end
@@ -118,20 +114,26 @@ module BBCode
 
     def visit_IMG(node)
       ignore_node(node)
-
-      add_link do
-        @markdown << "![](#{node.attribute('src')})" if start?(node)
-      end
+      @markdown << "![](#{node.attribute('src')})" if start?(node)
     end
 
     def visit_URL(node)
       return if @element_stack.last == 'IMG'
 
       if start?(node)
-        @url = node.attribute('url')
+        @markdown_before_link = @markdown
+        @markdown = ''
       else
-        @markdown << @url if @url
-        @url = nil
+        url = node.attribute('url')
+        link_text = @markdown
+        @markdown = @markdown_before_link
+        @markdown_before_link = nil
+
+        if link_text.strip == url
+          @markdown << url
+        else
+          @markdown << "[#{link_text}](#{url})"
+        end
       end
     end
 
@@ -164,15 +166,6 @@ module BBCode
 
     def text(node)
       CGI.unescapeHTML(node.outer_xml)
-    end
-
-    def add_link
-      @markdown << '[' if @url
-
-      yield
-
-      @markdown << "](#{@url})" if @url
-      @url = nil
     end
   end
 end
