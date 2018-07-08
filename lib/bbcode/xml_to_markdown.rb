@@ -38,19 +38,7 @@ module BBCode
       if @within_code_block
         @code << text(node)
       else
-        text = text(node)
-
-        if @markdown.empty?
-          @markdown << text unless text.strip.empty?
-        else
-          text.lstrip!
-          trailing_newline_removed = text.sub!(/\n\s*\z/, '')
-
-          unless text.empty?
-            @markdown << text
-            @markdown << "\n" if trailing_newline_removed
-          end
-        end
+        @markdown << text(node).lstrip.sub(/\n\s*\z/, '')
       end
     end
 
@@ -100,7 +88,13 @@ module BBCode
 
     def add_new_line_around_list
       return if @markdown.empty?
-      @markdown << "\n" unless @markdown.end_with?("\n") && @list_stack.size > 0
+      ends_with_new_line = @markdown.end_with?("\n")
+
+      if ends_with_new_line ^ (@list_stack.size > 0)
+        @markdown << "\n"
+      elsif !ends_with_new_line
+        @markdown << "\n\n"
+      end
     end
 
     def visit_LI(node)
