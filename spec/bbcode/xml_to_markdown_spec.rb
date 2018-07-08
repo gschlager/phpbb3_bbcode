@@ -216,7 +216,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       expect(convert(xml)).to eq('http://answers.yahoo.com/question/index?qid=20070920134223AAkkPli')
     end
 
-    it "converts BBCodes inside of links" do
+    it "converts BBCodes inside link text" do
       xml = <<~XML
         <r><URL url="http://example.com"><s>[url=http://example.com]</s>
         <B><s>[b]</s>Hello <I><s>[i]</s>world<e>[/i]</e></I>!<e>[/b]</e></B>
@@ -225,5 +225,25 @@ RSpec.describe BBCode::XmlToMarkdown do
 
       expect(convert(xml)).to eq('[**Hello _world_!**](http://example.com)')
     end
+  end
+
+  it "converts line breaks" do
+    xml = <<~XML
+      <t>Lorem ipsum dolor sit amet.<br/>
+      <br/>
+      Consetetur sadipscing elitr.<br/>
+      <br/>
+      <br/>
+      Sed diam nonumy eirmod tempor.</t>
+    XML
+
+    expect(convert(xml)).to eq(<<~MD.strip)
+      Lorem ipsum dolor sit amet.
+
+      Consetetur sadipscing elitr.
+
+      <br>
+      Sed diam nonumy eirmod tempor.
+    MD
   end
 end

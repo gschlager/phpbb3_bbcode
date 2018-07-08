@@ -12,6 +12,7 @@ module BBCode
       @list_stack = []
       @element_stack = []
       @ignore_node_count = 0
+      @consecutive_br_count = 0
       @markdown = ""
 
       @reader.each { |node| visit(node) }
@@ -24,7 +25,9 @@ module BBCode
       visitor = "visit_#{node.name.gsub(/\W/, '_')}"
       is_start_element = start?(node)
 
+      calc_consecutive_br_count(node)
       @element_stack.pop if !is_start_element && @element_stack.last == node.name
+
       send(visitor, node) if respond_to?(visitor, include_all: true)
       @element_stack << node.name if is_start_element
     end
@@ -40,9 +43,13 @@ module BBCode
         if @markdown.empty?
           @markdown << text unless text.strip.empty?
         else
+          text.lstrip!
           trailing_newline_removed = text.sub!(/\n\s*\z/, '')
-          @markdown << text.lstrip
-          @markdown << "\n" if trailing_newline_removed
+
+          unless text.empty?
+            @markdown << text
+            @markdown << "\n" if trailing_newline_removed
+          end
         end
       end
     end
@@ -141,6 +148,14 @@ module BBCode
       @markdown << (start?(node) ? '<' : '>')
     end
 
+    def visit_br(node)
+      if @consecutive_br_count > 2
+        @markdown << "<br>\n"
+      else
+        @markdown << "\n"
+      end
+    end
+
     # node for "BBCode start tag"
     def visit_s(node)
       ignore_node(node)
@@ -160,8 +175,22 @@ module BBCode
       node.node_type == Nokogiri::XML::Reader::TYPE_ELEMENT
     end
 
+    def text?(node)
+      node.node_type == Nokogiri::XML::Reader::TYPE_TEXT
+    end
+
     def ignore_node(node)
       @ignore_node_count += start?(node) ? 1 : -1
+    end
+
+    def calc_consecutive_br_count(node)
+      return unless start?(node) || text?(node)
+
+      if node.name == 'br'
+        @consecutive_br_count += 1
+      else
+        @consecutive_br_count = 0
+      end
     end
 
     def text(node)
