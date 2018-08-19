@@ -2,10 +2,14 @@ require 'nokogiri'
 
 module BBCode
   class XmlToMarkdown
-    def initialize(xml)
+    def initialize(xml, opts = {})
       @reader = Nokogiri::XML::Reader(xml) do |config|
         config.noblanks
       end
+
+      @username_from_user_id = opts[:username_from_user_id]
+      @smilie_to_emoji = opts[:smilie_to_emoji]
+      @quoted_post_from_post_id = opts[:quoted_post_from_post_id]
     end
 
     def convert
@@ -36,7 +40,7 @@ module BBCode
       return if @ignore_node_count > 0
 
       if @within_code_block
-        @code << text(node)
+        @code << text(node, escape_markdown: false)
       else
         @markdown << text(node).lstrip.sub(/\n\s*\z/, '')
       end
@@ -187,8 +191,10 @@ module BBCode
       end
     end
 
-    def text(node)
-      CGI.unescapeHTML(node.outer_xml)
+    def text(node, escape_markdown: true)
+      text = CGI.unescapeHTML(node.outer_xml)
+      # text.gsub!(/[\\`*_{}\[\]()#+\-.!~]/) { |c| "\\#{c}" } if escape_markdown
+      text
     end
   end
 end

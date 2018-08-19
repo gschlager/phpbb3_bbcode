@@ -2,8 +2,8 @@ require 'rspec'
 require 'bbcode/xml_to_markdown'
 
 RSpec.describe BBCode::XmlToMarkdown do
-  def convert(xml)
-    BBCode::XmlToMarkdown.new(xml).convert
+  def convert(xml, opts = {})
+    BBCode::XmlToMarkdown.new(xml, opts).convert
   end
 
   it "converts unformatted text" do
@@ -227,6 +227,158 @@ RSpec.describe BBCode::XmlToMarkdown do
     end
   end
 
+  context "quotes" do
+    it "converts simple quote" do
+      xml = <<~XML
+        <r><QUOTE><s>[quote]</s>Lorem<br/>
+        ipsum<e>[/quote]</e></QUOTE></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD)
+        > Lorem
+        > ipsum
+      MD
+    end
+
+    it "converts quote with author attribute" do
+      xml = '<r><QUOTE author="Mr. Blobby"><s>[quote="Mr. Blobby"]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
+
+      expect(convert(xml)).to eq(<<~MD)
+        [quote="Mr. Blobby"]
+        Lorem ipsum
+        [/quote]
+      MD
+    end
+
+    context "with user_id attribute" do
+      let(:opts) { { username_from_user_id: lambda { |user_id| user_id == 48 ? "mr_blobby" : nil } } }
+
+      it "uses the correct username when the user exists" do
+        xml = '<r><QUOTE author="Mr. Blobby" user_id="48"><s>[quote="Mr. Blobby" user_id=48]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
+
+        expect(convert(xml, opts)).to eq(<<~MD)
+          [quote="mr_blobby"]
+          Lorem ipsum
+          [/quote]
+        MD
+      end
+
+      it "uses the author name when the user does not exist" do
+        xml = '<r><QUOTE author="Mr. Blobby" user_id="49"><s>[quote="Mr. Blobby" user_id=48]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
+
+        expect(convert(xml, opts)).to eq(<<~MD)
+          [quote="Mr. Blobby"]
+          Lorem ipsum
+          [/quote]
+        MD
+      end
+
+      it "creates a blockquote when the user does not exist and the author is missing" do
+        xml = '<r><QUOTE user_id="49"><s>[quote=user_id=48]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
+        expect(convert(xml, opts)).to eq("> Lorem ipsum")
+      end
+    end
+
+    context "with post_id attribute" do
+      let(:opts) do
+        { quoted_post_from_post_id: lambda { |post_id| { username: 'mr_blobby', post_number: 3, topic_id: 951 } if post_id == 43 } }
+      end
+
+      it "uses information from the quoted post if the post exists" do
+        xml = <<~XML
+          <r><QUOTE author="Mr. Blobby" post_id="43" time="1534626128" user_id="48">
+          <s>[quote="Mr. Blobby" post_id=43 time=1534626128 user_id=48]</s>Lorem ipsum<e>[/quote]</e>
+          </QUOTE></r>
+        XML
+
+        expect(convert(xml, opts)).to eq(<<~MD)
+          [quote="mr_blobby, post:3, topic:951"]
+          Lorem ipsum
+          [/quote]
+        MD
+      end
+
+      it "uses other attributes when post doesn't exist" do
+        xml = <<~XML
+          <r><QUOTE author="Mr. Blobby" post_id="44" time="1534626128" user_id="48">
+          <s>[quote="Mr. Blobby" post_id=44 time=1534626128 user_id=48]</s>Lorem ipsum<e>[/quote]</e>
+          </QUOTE></r>
+        XML
+
+        expect(convert(xml, opts)).to eq(<<~MD)
+          [quote="Mr. Blobby"]
+          Lorem ipsum
+          [/quote]
+        MD
+      end
+    end
+
+    it "converts nested quotes" do
+      xml = <<~XML
+        <r>Multiple nested quotes:<br/>
+
+          <QUOTE author="user1" post_id="36" time="1532208272" user_id="2">
+            <s>[quote=user1 post_id=36 time=1532208272 user_id=11]</s>
+            <QUOTE author="user2" post_id="35" time="1532208262" user_id="2">
+              <s>[quote=user2 post_id=35 time=1532208262 user_id=12]</s>
+              <QUOTE author="user3" post_id="5" time="1530447394" user_id="2">
+                <s>[quote=user3 post_id=5 time=1530447394 user_id=13]</s>
+                <B><s>[b]</s>bold <I><s>[i]</s>and<e>[/i]</e></I> italic<e>[/b]</e></B>
+                <e>[/quote]</e>
+              </QUOTE>
+
+              Lorem ipsum
+              <e>[/quote]</e>
+            </QUOTE>
+
+            nested quotes
+            <e>[/quote]</e>
+          </QUOTE>
+
+          Text after quotes.
+        </r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD)
+        Multiple nested quotes:
+
+        [quote="user3"]
+        [quote="user2"]
+        [quote="user1"]
+        **bold** and _italic_
+        [/quote]
+
+        Lorem ipsum
+        [/quote]
+
+        nested quotes
+        [/quote]
+
+        Text after quotes.
+      MD
+    end
+  end
+
+  it "converts smilies" do
+    opts = {
+        smilie_to_emoji: lambda do |smilie|
+          case smilie
+          when ':D'
+            ':smiley:'
+          when ':eek:'
+            ':astonished:'
+          end
+        end
+    }
+
+    xml = '<r><E>:D</E> <E>:eek:</E></r>'
+    expect(convert(xml, opts)).to eq(":smiley: :astonished:")
+  end
+
+  context "attachments" do
+
+  end
+
   it "converts line breaks" do
     xml = <<~XML
       <t>Lorem ipsum dolor sit amet.<br/>
@@ -245,5 +397,10 @@ RSpec.describe BBCode::XmlToMarkdown do
       <br>
       Sed diam nonumy eirmod tempor.
     MD
+  end
+
+  it "doesn't remove whitespaces inside tags" do
+    xml = '<r>Lorem<B><s>[b]</s> ipsum <e>[/b]</e></B>dolor</r>'
+    expect(convert(xml)).to eq('Lorem **ipsum** dolor')
   end
 end
