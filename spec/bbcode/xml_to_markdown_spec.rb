@@ -234,7 +234,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         ipsum<e>[/quote]</e></QUOTE></r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD)
+      expect(convert(xml)).to eq(<<~MD.strip)
         > Lorem
         > ipsum
       MD
@@ -243,7 +243,7 @@ RSpec.describe BBCode::XmlToMarkdown do
     it "converts quote with author attribute" do
       xml = '<r><QUOTE author="Mr. Blobby"><s>[quote="Mr. Blobby"]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
 
-      expect(convert(xml)).to eq(<<~MD)
+      expect(convert(xml)).to eq(<<~MD.strip)
         [quote="Mr. Blobby"]
         Lorem ipsum
         [/quote]
@@ -256,7 +256,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       it "uses the correct username when the user exists" do
         xml = '<r><QUOTE author="Mr. Blobby" user_id="48"><s>[quote="Mr. Blobby" user_id=48]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
 
-        expect(convert(xml, opts)).to eq(<<~MD)
+        expect(convert(xml, opts)).to eq(<<~MD.strip)
           [quote="mr_blobby"]
           Lorem ipsum
           [/quote]
@@ -266,7 +266,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       it "uses the author name when the user does not exist" do
         xml = '<r><QUOTE author="Mr. Blobby" user_id="49"><s>[quote="Mr. Blobby" user_id=48]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
 
-        expect(convert(xml, opts)).to eq(<<~MD)
+        expect(convert(xml, opts)).to eq(<<~MD.strip)
           [quote="Mr. Blobby"]
           Lorem ipsum
           [/quote]
@@ -291,7 +291,7 @@ RSpec.describe BBCode::XmlToMarkdown do
           </QUOTE></r>
         XML
 
-        expect(convert(xml, opts)).to eq(<<~MD)
+        expect(convert(xml, opts)).to eq(<<~MD.strip)
           [quote="mr_blobby, post:3, topic:951"]
           Lorem ipsum
           [/quote]
@@ -305,7 +305,7 @@ RSpec.describe BBCode::XmlToMarkdown do
           </QUOTE></r>
         XML
 
-        expect(convert(xml, opts)).to eq(<<~MD)
+        expect(convert(xml, opts)).to eq(<<~MD.strip)
           [quote="Mr. Blobby"]
           Lorem ipsum
           [/quote]
@@ -317,13 +317,13 @@ RSpec.describe BBCode::XmlToMarkdown do
       xml = <<~XML
         <r>Multiple nested quotes:<br/>
 
-          <QUOTE author="user1" post_id="36" time="1532208272" user_id="2">
-            <s>[quote=user1 post_id=36 time=1532208272 user_id=11]</s>
-            <QUOTE author="user2" post_id="35" time="1532208262" user_id="2">
-              <s>[quote=user2 post_id=35 time=1532208262 user_id=12]</s>
-              <QUOTE author="user3" post_id="5" time="1530447394" user_id="2">
-                <s>[quote=user3 post_id=5 time=1530447394 user_id=13]</s>
-                <B><s>[b]</s>bold <I><s>[i]</s>and<e>[/i]</e></I> italic<e>[/b]</e></B>
+          <QUOTE author="user3">
+            <s>[quote=user3]</s>
+            <QUOTE author="user2">
+              <s>[quote=user2]</s>
+              <QUOTE author="user1">
+                <s>[quote=user1]</s>
+                <B><s>[b]</s>foo <I><s>[i]</s>and<e>[/i]</e></I> bar<e>[/b]</e></B>
                 <e>[/quote]</e>
               </QUOTE>
 
@@ -339,13 +339,13 @@ RSpec.describe BBCode::XmlToMarkdown do
         </r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD)
+      expect(convert(xml)).to eq(<<~MD.strip)
         Multiple nested quotes:
 
         [quote="user3"]
         [quote="user2"]
         [quote="user1"]
-        **bold** and _italic_
+        **foo _and_ bar**
         [/quote]
 
         Lorem ipsum
@@ -376,7 +376,38 @@ RSpec.describe BBCode::XmlToMarkdown do
   end
 
   context "attachments" do
+    it "converts attachments" do
+      opts = {
+          upload_md_from_file: lambda do |filename, index|
+            url = case index
+                  when 0 then
+                    "upload://hash2.png"
+                  when 1 then
+                    "upload://hash1.png"
+                  end
 
+            "![#{filename}|231x231](#{url})"
+          end
+      }
+
+      xml = <<~XML
+        <r>Multiple attachments:
+        <ATTACHMENT filename="image1.png" index="1"><s>[attachment=1]</s>image1.png<e>[/attachment]</e></ATTACHMENT>
+        This is an inline image.<br/>
+        <br/>
+        And another one:
+        <ATTACHMENT filename="image2.png" index="0"><s>[attachment=0]</s>image2.png<e>[/attachment]</e></ATTACHMENT></r>
+      XML
+
+      expect(convert(xml, opts)).to eq(<<~MD.strip)
+        Multiple attachments:
+        ![image1.png|231x231](upload://hash1.png)
+        This is an inline image.
+
+        And another one:
+        ![image2.png|231x231](upload://hash2.png)
+      MD
+    end
   end
 
   it "converts line breaks" do
@@ -399,8 +430,24 @@ RSpec.describe BBCode::XmlToMarkdown do
     MD
   end
 
-  it "doesn't remove whitespaces inside tags" do
-    xml = '<r>Lorem<B><s>[b]</s> ipsum <e>[/b]</e></B>dolor</r>'
-    expect(convert(xml)).to eq('Lorem **ipsum** dolor')
+  context "whitespace" do
+    it "doesn't strip whitespaces from inline tags" do
+      xml = <<~XML
+        <r>Lorem<B><s>[b]</s> ipsum <e>[/b]</e></B>dolor<br/>
+        <I><s>[i]</s> sit <e>[/i]</e></I>amet,<br/>
+        consetetur<B><s>[b]</s> sadipscing <e>[/b]</e></B></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.rstrip)
+        Lorem **ipsum** dolor
+        _sit_ amet,
+        consetetur **sadipscing**
+      MD
+    end
+
+    it "preserves whitespace between tags" do
+      xml = "<r>foo <B><s>[b]</s>bold<e>[/b]</e></B> <I><s>[i]</s>italic<e>[/i]</e></I> <U><s>[u]</s>underlined<e>[/u]</e></U> bar</r>"
+      expect(convert(xml)).to eq("foo **bold** _italic_ [u]underlined[/u] bar")
+    end
   end
 end

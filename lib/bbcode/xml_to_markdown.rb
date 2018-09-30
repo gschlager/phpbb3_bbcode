@@ -1,200 +1,274 @@
 require 'nokogiri'
+require_relative 'markdown_node'
 
 module BBCode
   class XmlToMarkdown
     def initialize(xml, opts = {})
-      @reader = Nokogiri::XML::Reader(xml) do |config|
-        config.noblanks
-      end
-
       @username_from_user_id = opts[:username_from_user_id]
       @smilie_to_emoji = opts[:smilie_to_emoji]
       @quoted_post_from_post_id = opts[:quoted_post_from_post_id]
+      @upload_md_from_file = opts[:upload_md_from_file]
+
+      @doc = Nokogiri::XML(xml)
+      @list_stack = []
     end
 
     def convert
-      @list_stack = []
-      @element_stack = []
-      @ignore_node_count = 0
-      @consecutive_br_count = 0
-      @markdown = ""
+      preprocess_xml
 
-      @reader.each { |node| visit(node) }
-      @markdown.rstrip
+      md_root = MarkdownNode.new(xml_node_name: "ROOT", parent: nil)
+      visit(@doc.root, md_root)
+      to_markdown(md_root).rstrip
     end
 
-    protected
+    private
 
-    def visit(node)
-      visitor = "visit_#{node.name.gsub(/\W/, '_')}"
-      is_start_element = start?(node)
+    IGNORED_ELEMENTS = ["s", "e", "i"]
+    ELEMENTS_WITHOUT_WHITESPACES = ["LIST", "LI"]
 
-      calc_consecutive_br_count(node)
-      @element_stack.pop if !is_start_element && @element_stack.last == node.name
-
-      send(visitor, node) if respond_to?(visitor, include_all: true)
-      @element_stack << node.name if is_start_element
-    end
-
-    def visit__text(node)
-      return if @ignore_node_count > 0
-
-      if @within_code_block
-        @code << text(node, escape_markdown: false)
-      else
-        @markdown << text(node).lstrip.sub(/\n\s*\z/, '')
-      end
-    end
-
-    def visit_B(node)
-      @markdown << '**'
-    end
-
-    def visit_I(node)
-      @markdown << '_'
-    end
-
-    def visit_U(node)
-      @markdown << (start?(node) ? '[u]' : '[/u]')
-    end
-
-    def visit_CODE(node)
-      if start?(node)
-        @within_code_block = true
-        @code = ''
-      else
-        if @code.include?("\n")
-          @code.sub!(/\A[\n\r]*/, '')
-          @code.rstrip!
-          @markdown = "```text\n#{@code}\n```"
-        else
-          @markdown = "`#{@code}`"
-        end
-
-        @within_code_block = false
-        @code = nil
-      end
-    end
-
-    def visit_LIST(node)
-      if start?(node)
-        add_new_line_around_list
-
-        @list_stack << {
-            unordered: node.attribute('type').nil?,
-            item_count: 0
-        }
-      else
-        @list_stack.pop
-        add_new_line_around_list
-      end
-    end
-
-    def add_new_line_around_list
-      return if @markdown.empty?
-      ends_with_new_line = @markdown.end_with?("\n")
-
-      if ends_with_new_line ^ (@list_stack.size > 0)
-        @markdown << "\n"
-      elsif !ends_with_new_line
-        @markdown << "\n\n"
-      end
-    end
-
-    def visit_LI(node)
-      if start?(node)
-        list = @list_stack.last
-        depth = @list_stack.size - 1
-
-        list[:item_count] += 1
-
-        indentation = ' ' * 2 * depth
-        symbol = list[:unordered] ? '*' : "#{list[:item_count]}."
-
-        @markdown << "#{indentation}#{symbol} "
-      else
-        @markdown << "\n" unless @markdown.end_with?("\n")
-      end
-    end
-
-    def visit_IMG(node)
-      ignore_node(node)
-      @markdown << "![](#{node.attribute('src')})" if start?(node)
-    end
-
-    def visit_URL(node)
-      return if @element_stack.last == 'IMG'
-
-      if start?(node)
-        @markdown_before_link = @markdown
-        @markdown = ''
-      else
-        url = node.attribute('url')
-        link_text = @markdown
-        @markdown = @markdown_before_link
-        @markdown_before_link = nil
-
-        if link_text.strip == url
-          @markdown << url
-        else
-          @markdown << "[#{link_text}](#{url})"
+    def preprocess_xml
+      @doc.traverse do |node|
+        if node.is_a? Nokogiri::XML::Text
+          node.content = node.content.gsub(/\A\n+\s*/, "")
+          node.content = node.content.strip if ELEMENTS_WITHOUT_WHITESPACES.include?(node.parent&.name)
+          node.remove if node.content.empty?
+        elsif IGNORED_ELEMENTS.include?(node.name)
+          node.remove
         end
       end
     end
 
-    def visit_EMAIL(node)
-      @markdown << (start?(node) ? '<' : '>')
-    end
+    def visit(xml_node, md_parent)
+      visitor = "visit_#{xml_node.name}"
+      visitor_exists = respond_to?(visitor, include_all: true)
 
-    def visit_br(node)
-      if @consecutive_br_count > 2
-        @markdown << "<br>\n"
-      else
-        @markdown << "\n"
+      if visitor_exists && md_parent.children
+        md_node = MarkdownNode.new(xml_node_name: xml_node.name, parent: md_parent)
+        send(visitor, xml_node, md_node)
+      end
+
+      if md_node || md_parent.root?
+        xml_node.children.each { |xml_child| visit(xml_child, md_node || md_parent) }
+      end
+
+      after_hook = "after_#{xml_node.name}"
+      if respond_to?(after_hook, include_all: true)
+        send(after_hook, xml_node, md_node)
       end
     end
 
-    # node for "BBCode start tag"
-    def visit_s(node)
-      ignore_node(node)
+    def visit_text(xml_node, md_node)
+      md_node.text << text(xml_node).gsub("\n", "")
     end
 
-    # node for "BBCode end tag"
-    def visit_e(node)
-      ignore_node(node)
+    def visit_B(xml_node, md_node)
+      md_node.enclosed_with = "**"
     end
 
-    # node for "ignored text"
-    def visit_i(node)
-      ignore_node(node)
+    def visit_I(xml_node, md_node)
+      md_node.enclosed_with = "_"
     end
 
-    def start?(node)
-      node.node_type == Nokogiri::XML::Reader::TYPE_ELEMENT
+    def visit_U(xml_node, md_node)
+      md_node.prefix = "[u]"
+      md_node.postfix = "[/u]"
     end
 
-    def text?(node)
-      node.node_type == Nokogiri::XML::Reader::TYPE_TEXT
-    end
+    def visit_CODE(xml_node, md_node)
+      content = xml_node.content
 
-    def ignore_node(node)
-      @ignore_node_count += start?(node) ? 1 : -1
-    end
-
-    def calc_consecutive_br_count(node)
-      return unless start?(node) || text?(node)
-
-      if node.name == 'br'
-        @consecutive_br_count += 1
+      if content.include?("\n")
+        md_node.prefix = "```text\n"
+        md_node.postfix = "\n```"
       else
-        @consecutive_br_count = 0
+        md_node.enclosed_with = "`"
+      end
+
+      md_node.text = content.rstrip
+      md_node.skip_children
+    end
+
+    def visit_LIST(xml_node, md_node)
+      md_node.prefix_newlines = md_node.postfix_newlines = @list_stack.size == 0 ? 2 : 1
+      @list_stack << {
+          unordered: xml_node.attribute('type').nil?,
+          item_count: 0
+      }
+    end
+
+    def after_LIST(xml_node, md_node)
+      @list_stack.pop
+    end
+
+    def visit_LI(xml_node, md_node)
+      list = @list_stack.last
+      depth = @list_stack.size - 1
+
+      list[:item_count] += 1
+
+      indentation = ' ' * 2 * depth
+      symbol = list[:unordered] ? '*' : "#{list[:item_count]}."
+
+      md_node.prefix = "#{indentation}#{symbol} "
+      md_node.postfix_newlines = 1
+    end
+
+    def visit_IMG(xml_node, md_node)
+      md_node.text = "![](#{xml_node.attribute('src')})"
+      md_node.skip_children
+    end
+
+    def visit_URL(xml_node, md_node)
+      url = xml_node.attribute('url').to_s
+
+      if xml_node.content.strip == url
+        md_node.text = url
+        md_node.skip_children
+      else
+        md_node.prefix = "["
+        md_node.postfix = "](#{url})"
       end
     end
 
-    def text(node, escape_markdown: true)
-      text = CGI.unescapeHTML(node.outer_xml)
+    def visit_EMAIL(xml_node, md_node)
+      md_node.prefix = "<"
+      md_node.postfix = ">"
+    end
+
+    def visit_br(xml_node, md_node)
+      br_count = 0
+      md_node.parent.children.reverse.each do |child|
+        break if child.xml_node_name != "br"
+        br_count += 1
+      end
+
+      if br_count > 2
+        md_node.text = "<br>"
+        md_node.postfix_newlines = 1
+      else
+        md_node.postfix_newlines = br_count
+      end
+    end
+
+    def visit_E(xml_node, md_node)
+      if @smilie_to_emoji
+        md_node.text = @smilie_to_emoji.call(xml_node.content)
+        md_node.skip_children
+      end
+    end
+
+    def visit_QUOTE(xml_node, md_node)
+      if post = quoted_post(xml_node)
+        md_node.prefix = %Q{[quote="#{post[:username]}, post:#{post[:post_number]}, topic:#{post[:topic_id]}"]\n}
+        md_node.postfix = "\n[/quote]"
+      elsif username = quoted_username(xml_node)
+        md_node.prefix = %Q{[quote="#{username}"]\n}
+        md_node.postfix = "\n[/quote]"
+      else
+        md_node.prefix_children = "> "
+      end
+
+      md_node.prefix_newlines = 2
+      md_node.postfix_newlines = 2
+    end
+
+    def quoted_post(xml_node)
+      if @quoted_post_from_post_id
+        post_id = to_i(xml_node.attr("post_id"))
+        @quoted_post_from_post_id.call(post_id) if post_id
+      end
+    end
+
+    def quoted_username(xml_node)
+      if @username_from_user_id
+        user_id = to_i(xml_node.attr("user_id"))
+        username = @username_from_user_id.call(user_id) if user_id
+      end
+
+      username = xml_node.attr("author") unless username
+      username
+    end
+
+    def to_i(string)
+      string.to_i if string&.match(/\A\d+\z/)
+    end
+
+    def visit_ATTACHMENT(xml_node, md_node)
+      filename = xml_node.attr("filename")
+      index = to_i(xml_node.attr("index"))
+
+      md_node.text = @upload_md_from_file.call(filename, index)
+      md_node.prefix_newlines = 1
+      md_node.postfix_newlines = 1
+      md_node.skip_children
+    end
+
+    def text(xml_node, escape_markdown: true)
+      text = CGI.unescapeHTML(xml_node.text)
       # text.gsub!(/[\\`*_{}\[\]()#+\-.!~]/) { |c| "\\#{c}" } if escape_markdown
       text
+    end
+
+    # @param md_parent [MarkdownNode]
+    def to_markdown(md_parent)
+      markdown = ""
+
+      md_parent.children.each do |md_node|
+        prefix = md_node.prefix
+        text = md_node.children&.any? ? to_markdown(md_node) : md_node.text
+        postfix = md_node.postfix
+
+        prefix = md_parent.prefix_children if md_parent.prefix_children && !md_node.text.empty?
+
+        unless md_node.xml_node_name == "CODE"
+          text, prefix, postfix = hoist_whitespaces!(markdown, text, prefix, postfix)
+        end
+
+        add_newlines!(markdown, md_node.prefix_newlines)
+        markdown << prefix
+        markdown << text
+        markdown << postfix
+        add_newlines!(markdown, md_node.postfix_newlines)
+      end
+
+      markdown
+    end
+
+    def hoist_whitespaces!(markdown, text, prefix, postfix)
+      unless prefix.empty?
+        if starts_with_whitespace?(text) && !ends_with_whitespace?(markdown)
+          prefix = "#{text[0]}#{prefix}"
+        end
+        text = text.lstrip
+      end
+
+      unless postfix.empty?
+        if ends_with_whitespace?(text)
+          postfix = "#{postfix}#{text[-1]}"
+        end
+        text = text.rstrip
+      end
+
+      [text, prefix, postfix]
+    end
+
+    def add_newlines!(markdown, required_newline_count)
+      return if required_newline_count == 0 || markdown.empty?
+
+      missing_newlines = required_newline_count - markdown[/\n*\z/].length
+
+      if missing_newlines > 0
+        markdown.rstrip!
+        markdown << ("\n" * required_newline_count)
+      end
+    end
+
+    def starts_with_whitespace?(text)
+      text.match?(/\A\s/)
+    end
+
+    def ends_with_whitespace?(text)
+      text.match?(/\s\z/)
     end
   end
 end
