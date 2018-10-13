@@ -86,6 +86,7 @@ module BBCode
 
       md_node.text = content.rstrip
       md_node.skip_children
+      md_node.prefix_newlines = md_node.postfix_newlines = 2
     end
 
     def visit_LIST(xml_node, md_node)
@@ -115,6 +116,7 @@ module BBCode
 
     def visit_IMG(xml_node, md_node)
       md_node.text = "![](#{xml_node.attribute('src')})"
+      md_node.prefix_newlines = md_node.postfix_newlines = 2
       md_node.skip_children
     end
 
@@ -168,8 +170,7 @@ module BBCode
         md_node.prefix_children = "> "
       end
 
-      md_node.prefix_newlines = 2
-      md_node.postfix_newlines = 2
+      md_node.prefix_newlines = md_node.postfix_newlines = 2
     end
 
     def quoted_post(xml_node)
@@ -198,8 +199,7 @@ module BBCode
       index = to_i(xml_node.attr("index"))
 
       md_node.text = @upload_md_from_file.call(filename, index)
-      md_node.prefix_newlines = 1
-      md_node.postfix_newlines = 1
+      md_node.prefix_newlines = md_node.postfix_newlines = 1
       md_node.skip_children
     end
 

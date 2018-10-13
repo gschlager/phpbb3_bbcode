@@ -7,7 +7,7 @@ RSpec.describe BBCode::XmlToMarkdown do
   end
 
   it "converts unformatted text" do
-    xml = '<r>unformatted text</r>'
+    xml = '<t>unformatted text</t>'
     expect(convert(xml)).to eq('unformatted text')
   end
 
@@ -47,6 +47,32 @@ RSpec.describe BBCode::XmlToMarkdown do
         ( o.o )
          > ^ <
         ```
+      MD
+    end
+
+    it "adds leading and trailing newlines to code blocks" do
+      xml = <<~XML
+        <r>text before code block<br/>
+
+        <CODE><s>[code]</s><i>
+        </i>foo
+
+        bar
+        <e>[/code]</e></CODE>
+
+        text after code block</r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.strip)
+        text before code block
+
+        ```text
+        foo
+
+        bar
+        ```
+
+        text after code block
       MD
     end
   end
