@@ -8,6 +8,7 @@ module BBCode
       @smilie_to_emoji = opts[:smilie_to_emoji]
       @quoted_post_from_post_id = opts[:quoted_post_from_post_id]
       @upload_md_from_file = opts[:upload_md_from_file]
+      @url_replacement = opts[:url_replacement]
 
       @doc = Nokogiri::XML(xml)
       @list_stack = []
@@ -121,9 +122,11 @@ module BBCode
     end
 
     def visit_URL(xml_node, md_node)
-      url = xml_node.attribute('url').to_s
+      original_url = xml_node.attribute('url').to_s
+      url = CGI.unescapeHTML(original_url)
+      url = @url_replacement.call(url) if @url_replacement
 
-      if xml_node.content.strip == url
+      if xml_node.content.strip == original_url
         md_node.text = url
         md_node.skip_children
       else

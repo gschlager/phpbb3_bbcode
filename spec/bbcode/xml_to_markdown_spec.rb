@@ -221,6 +221,19 @@ RSpec.describe BBCode::XmlToMarkdown do
       expect(convert(xml)).to eq('[Capybara](https://en.wikipedia.org/wiki/Capybara)')
     end
 
+    it "converts internal links" do
+      opts = {
+          url_replacement: lambda do |url|
+            if url == 'http://forum.example.com/viewtopic.php?f=2&t=2'
+              'https://discuss.example.com/t/welcome-topic/18'
+            end
+          end
+      }
+
+      xml = '<r><URL url="http://forum.example.com/viewtopic.php?f=2&amp;t=2"><LINK_TEXT text="viewtopic.php?f=2&amp;t=2">http://forum.example.com/viewtopic.php?f=2&amp;t=2</LINK_TEXT></URL></r>'
+      expect(convert(xml, opts)).to eq('https://discuss.example.com/t/welcome-topic/18')
+    end
+
     it "converts email links created without BBCode" do
       xml = '<r><EMAIL email="foo.bar@example.com">foo.bar@example.com</EMAIL></r>'
       expect(convert(xml)).to eq('<foo.bar@example.com>')
