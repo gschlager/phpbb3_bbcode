@@ -6,6 +6,7 @@
 /pkg/
 /spec/reports/
 /tmp/
+/.rubocop-https---raw-githubusercontent-com-discourse-discourse-master--rubocop-yml
 
 # rspec failure tracking
 .rspec_status
