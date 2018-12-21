@@ -223,11 +223,11 @@ RSpec.describe BBCode::XmlToMarkdown do
 
     it "converts internal links" do
       opts = {
-          url_replacement: lambda do |url|
-            if url == 'http://forum.example.com/viewtopic.php?f=2&t=2'
-              'https://discuss.example.com/t/welcome-topic/18'
-            end
+        url_replacement: lambda do |url|
+          if url == 'http://forum.example.com/viewtopic.php?f=2&t=2'
+            'https://discuss.example.com/t/welcome-topic/18'
           end
+        end
       }
 
       xml = '<r><URL url="http://forum.example.com/viewtopic.php?f=2&amp;t=2"><LINK_TEXT text="viewtopic.php?f=2&amp;t=2">http://forum.example.com/viewtopic.php?f=2&amp;t=2</LINK_TEXT></URL></r>'
@@ -400,14 +400,14 @@ RSpec.describe BBCode::XmlToMarkdown do
 
   it "converts smilies" do
     opts = {
-        smilie_to_emoji: lambda do |smilie|
-          case smilie
-          when ':D'
-            ':smiley:'
-          when ':eek:'
-            ':astonished:'
-          end
+      smilie_to_emoji: lambda do |smilie|
+        case smilie
+        when ':D'
+          ':smiley:'
+        when ':eek:'
+          ':astonished:'
         end
+      end
     }
 
     xml = '<r><E>:D</E> <E>:eek:</E></r>'
@@ -417,16 +417,17 @@ RSpec.describe BBCode::XmlToMarkdown do
   context "attachments" do
     it "converts attachments" do
       opts = {
-          upload_md_from_file: lambda do |filename, index|
-            url = case index
-                  when 0 then
-                    "upload://hash2.png"
-                  when 1 then
-                    "upload://hash1.png"
-                  end
+        upload_md_from_file: lambda do |filename, index|
+          url = \
+            case index
+            when 0 then
+              "upload://hash2.png"
+            when 1 then
+              "upload://hash1.png"
+            end
 
-            "![#{filename}|231x231](#{url})"
-          end
+          "![#{filename}|231x231](#{url})"
+        end
       }
 
       xml = <<~XML
