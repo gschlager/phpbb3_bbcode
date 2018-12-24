@@ -49,9 +49,7 @@ module BBCode
         send(visitor, xml_node, md_node)
       end
 
-      if md_node || md_parent.root?
-        xml_node.children.each { |xml_child| visit(xml_child, md_node || md_parent) }
-      end
+      xml_node.children.each { |xml_child| visit(xml_child, md_node || md_parent) }
 
       after_hook = "after_#{xml_node.name}"
       if respond_to?(after_hook, include_all: true)
@@ -94,8 +92,8 @@ module BBCode
     def visit_LIST(xml_node, md_node)
       md_node.prefix_newlines = md_node.postfix_newlines = @list_stack.size == 0 ? 2 : 1
       @list_stack << {
-          unordered: xml_node.attribute('type').nil?,
-          item_count: 0
+        unordered: xml_node.attribute('type').nil?,
+        item_count: 0
       }
     end
 

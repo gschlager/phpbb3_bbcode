@@ -49,10 +49,6 @@ module BBCode
       @prefix = @postfix = text
     end
 
-    def root?
-      @parent.nil?
-    end
-
     def skip_children
       @children = nil
     end

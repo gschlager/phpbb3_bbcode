@@ -562,4 +562,16 @@ RSpec.describe BBCode::XmlToMarkdown do
       expect(convert(xml)).to eq("foo **bold** _italic_ [u]underlined[/u] bar")
     end
   end
+
+  context "unknown element" do
+    it "converts an unknown element right below the root element" do
+      xml = '<r><UNKNOWN><s>[unknown]</s>foo<e>[/unknown]</e></UNKNOWN></r>'
+      expect(convert(xml)).to eq('foo')
+    end
+
+    it "converts an unknown element inside a known element" do
+      xml = '<r><B><s>[b]</s><UNKNOWN><s>[unknown]</s>bar<e>[/unknown]</e></UNKNOWN><e>[/b]</e></B></r>'
+      expect(convert(xml)).to eq('**bar**')
+    end
+  end
 end
