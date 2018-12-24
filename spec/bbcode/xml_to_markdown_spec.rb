@@ -11,19 +11,91 @@ RSpec.describe BBCode::XmlToMarkdown do
     expect(convert(xml)).to eq('unformatted text')
   end
 
-  it "converts bold text" do
-    xml = '<r><B><s>[b]</s>this is bold text<e>[/b]</e></B></r>'
-    expect(convert(xml)).to eq('**this is bold text**')
+  context "bold text" do
+    it "converts bold text" do
+      xml = '<r><B><s>[b]</s>this is bold text<e>[/b]</e></B></r>'
+      expect(convert(xml)).to eq('**this is bold text**')
+    end
+
+    it "converts multi-line bold text" do
+      xml = <<~XML
+        <r><B><s>[b]</s>this is bold text<br/>
+        on two lines<e>[/b]</e></B><br/>
+        <br/>
+        <B><s>[b]</s>this is bold text<br/>
+        <br/>
+        <br/>
+        with two empty lines<e>[/b]</e></B></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.chomp)
+        **this is bold text\\
+        on two lines**
+
+        **this is bold text\\
+        \\
+        \\
+        with two empty lines**
+      MD
+    end
   end
 
-  it "converts italic text" do
-    xml = '<r><I><s>[i]</s>this is italic text<e>[/i]</e></I></r>'
-    expect(convert(xml)).to eq('_this is italic text_')
+  context "italic text" do
+    it "converts italic text" do
+      xml = '<r><I><s>[i]</s>this is italic text<e>[/i]</e></I></r>'
+      expect(convert(xml)).to eq('_this is italic text_')
+    end
+
+    it "converts multi-line italic text" do
+      xml = <<~XML
+        <r><I><s>[i]</s>this is italic text<br/>
+        on two lines<e>[/i]</e></I><br/>
+        <br/>
+        <I><s>[i]</s>this is italic text<br/>
+        <br/>
+        <br/>
+        with two empty lines<e>[/i]</e></I></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.chomp)
+        _this is italic text\\
+        on two lines_
+
+        _this is italic text\\
+        \\
+        \\
+        with two empty lines_
+      MD
+    end
   end
 
-  it "converts underlined text" do
-    xml = '<r><U><s>[u]</s>this is underlined text<e>[/u]</e></U></r>'
-    expect(convert(xml)).to eq('[u]this is underlined text[/u]')
+  context "underlined text" do
+    it "converts underlined text" do
+      xml = '<r><U><s>[u]</s>this is underlined text<e>[/u]</e></U></r>'
+      expect(convert(xml)).to eq('[u]this is underlined text[/u]')
+    end
+
+    it "converts multi-line underlined text" do
+      xml = <<~XML
+        <r><U><s>[u]</s>this is underlined text<br/>
+        on two lines<e>[/u]</e></U><br/>
+        <br/>
+        <U><s>[u]</s>this is underlined text<br/>
+        <br/>
+        <br/>
+        with two empty lines<e>[/u]</e></U></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.chomp)
+        [u]this is underlined text\\
+        on two lines[/u]
+
+        [u]this is underlined text\\
+        \\
+        \\
+        with two empty lines[/u]
+      MD
+    end
   end
 
   context "code blocks" do
@@ -41,7 +113,7 @@ RSpec.describe BBCode::XmlToMarkdown do
          <e>[/code]</e></CODE></r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD.strip)
+      expect(convert(xml)).to eq(<<~MD.chomp)
         ```text
          /\_/\
         ( o.o )
@@ -63,7 +135,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         text after code block</r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD.strip)
+      expect(convert(xml)).to eq(<<~MD.chomp)
         text before code block
 
         ```text
@@ -87,7 +159,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         <e>[/list]</e></LIST></r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD.strip)
+      expect(convert(xml)).to eq(<<~MD.chomp)
         * Red
         * Blue
         * Yellow
@@ -103,7 +175,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         <e>[/list]</e></LIST></r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD.strip)
+      expect(convert(xml)).to eq(<<~MD.chomp)
         1. Go to the shops
         2. Buy a new computer
         3. Swear at computer when it crashes
@@ -119,7 +191,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         <e>[/list]</e></LIST></r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD.strip)
+      expect(convert(xml)).to eq(<<~MD.chomp)
         1. The first possible answer
         2. The second possible answer
         3. The third possible answer
@@ -137,7 +209,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         bar</r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD.strip)
+      expect(convert(xml)).to eq(<<~MD.chomp)
         foo
 
         * Red
@@ -168,7 +240,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         <e>[/list]</e></LIST></r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD.strip)
+      expect(convert(xml)).to eq(<<~MD.chomp)
         * Option 1
           * Option 1.1
           * Option 1.2
@@ -273,7 +345,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         ipsum<e>[/quote]</e></QUOTE></r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD.strip)
+      expect(convert(xml)).to eq(<<~MD.chomp)
         > Lorem
         > ipsum
       MD
@@ -282,7 +354,7 @@ RSpec.describe BBCode::XmlToMarkdown do
     it "converts quote with author attribute" do
       xml = '<r><QUOTE author="Mr. Blobby"><s>[quote="Mr. Blobby"]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
 
-      expect(convert(xml)).to eq(<<~MD.strip)
+      expect(convert(xml)).to eq(<<~MD.chomp)
         [quote="Mr. Blobby"]
         Lorem ipsum
         [/quote]
@@ -295,7 +367,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       it "uses the correct username when the user exists" do
         xml = '<r><QUOTE author="Mr. Blobby" user_id="48"><s>[quote="Mr. Blobby" user_id=48]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
 
-        expect(convert(xml, opts)).to eq(<<~MD.strip)
+        expect(convert(xml, opts)).to eq(<<~MD.chomp)
           [quote="mr_blobby"]
           Lorem ipsum
           [/quote]
@@ -305,7 +377,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       it "uses the author name when the user does not exist" do
         xml = '<r><QUOTE author="Mr. Blobby" user_id="49"><s>[quote="Mr. Blobby" user_id=48]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
 
-        expect(convert(xml, opts)).to eq(<<~MD.strip)
+        expect(convert(xml, opts)).to eq(<<~MD.chomp)
           [quote="Mr. Blobby"]
           Lorem ipsum
           [/quote]
@@ -330,7 +402,7 @@ RSpec.describe BBCode::XmlToMarkdown do
           </QUOTE></r>
         XML
 
-        expect(convert(xml, opts)).to eq(<<~MD.strip)
+        expect(convert(xml, opts)).to eq(<<~MD.chomp)
           [quote="mr_blobby, post:3, topic:951"]
           Lorem ipsum
           [/quote]
@@ -344,7 +416,7 @@ RSpec.describe BBCode::XmlToMarkdown do
           </QUOTE></r>
         XML
 
-        expect(convert(xml, opts)).to eq(<<~MD.strip)
+        expect(convert(xml, opts)).to eq(<<~MD.chomp)
           [quote="Mr. Blobby"]
           Lorem ipsum
           [/quote]
@@ -378,7 +450,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         </r>
       XML
 
-      expect(convert(xml)).to eq(<<~MD.strip)
+      expect(convert(xml)).to eq(<<~MD.chomp)
         Multiple nested quotes:
 
         [quote="user3"]
@@ -439,7 +511,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         <ATTACHMENT filename="image2.png" index="0"><s>[attachment=0]</s>image2.png<e>[/attachment]</e></ATTACHMENT></r>
       XML
 
-      expect(convert(xml, opts)).to eq(<<~MD.strip)
+      expect(convert(xml, opts)).to eq(<<~MD.chomp)
         Multiple attachments:
         ![image1.png|231x231](upload://hash1.png)
         This is an inline image.
@@ -460,7 +532,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       Sed diam nonumy eirmod tempor.</t>
     XML
 
-    expect(convert(xml)).to eq(<<~MD.strip)
+    expect(convert(xml)).to eq(<<~MD.chomp)
       Lorem ipsum dolor sit amet.
 
       Consetetur sadipscing elitr.

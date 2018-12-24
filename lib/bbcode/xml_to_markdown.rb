@@ -26,6 +26,7 @@ module BBCode
 
     IGNORED_ELEMENTS = ["s", "e", "i"]
     ELEMENTS_WITHOUT_WHITESPACES = ["LIST", "LI"]
+    ELEMENTS_WITH_EXPLICIT_LINEBREAKS = ["B", "I", "U"]
 
     def preprocess_xml
       @doc.traverse do |node|
@@ -147,11 +148,16 @@ module BBCode
         br_count += 1
       end
 
-      if br_count > 2
-        md_node.text = "<br>"
+      if ELEMENTS_WITH_EXPLICIT_LINEBREAKS.include?(xml_node.parent&.name)
+        md_node.text = "\\"
         md_node.postfix_newlines = 1
       else
-        md_node.postfix_newlines = br_count
+        if br_count > 2
+          md_node.text = "<br>"
+          md_node.postfix_newlines = 1
+        else
+          md_node.postfix_newlines = br_count
+        end
       end
     end
 
