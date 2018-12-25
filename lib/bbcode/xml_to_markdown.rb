@@ -63,16 +63,22 @@ module BBCode
     end
 
     def visit_B(xml_node, md_node)
-      md_node.enclosed_with = "**"
+      if xml_node.parent&.name != 'B'
+        md_node.enclosed_with = "**"
+      end
     end
 
     def visit_I(xml_node, md_node)
-      md_node.enclosed_with = "_"
+      if xml_node.parent&.name != 'I'
+        md_node.enclosed_with = "_"
+      end
     end
 
     def visit_U(xml_node, md_node)
-      md_node.prefix = "[u]"
-      md_node.postfix = "[/u]"
+      if xml_node.parent&.name != 'U'
+        md_node.prefix = "[u]"
+        md_node.postfix = "[/u]"
+      end
     end
 
     def visit_CODE(xml_node, md_node)

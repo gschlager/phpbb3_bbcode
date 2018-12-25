@@ -38,6 +38,11 @@ RSpec.describe BBCode::XmlToMarkdown do
         with two empty lines**
       MD
     end
+
+    it "ignores duplicate bold text" do
+      xml = '<r><B><s>[b]</s><B><s>[b]</s>this is bold text<e>[/b]</e></B><e>[/b]</e></B></r>'
+      expect(convert(xml)).to eq('**this is bold text**')
+    end
   end
 
   context "italic text" do
@@ -67,6 +72,11 @@ RSpec.describe BBCode::XmlToMarkdown do
         with two empty lines_
       MD
     end
+
+    it "ignores duplicate italic text" do
+      xml = '<r><I><s>[i]</s><I><s>[i]</s>this is italic text<e>[/i]</e></I><e>[/i]</e></I></r>'
+      expect(convert(xml)).to eq('_this is italic text_')
+    end
   end
 
   context "underlined text" do
@@ -95,6 +105,11 @@ RSpec.describe BBCode::XmlToMarkdown do
         \\
         with two empty lines[/u]
       MD
+    end
+
+    it "ignores duplicate underlined text" do
+      xml = '<r><U><s>[u]</s><U><s>[u]</s>this is underlined text<e>[/u]</e></U><e>[/u]</e></U></r>'
+      expect(convert(xml)).to eq('[u]this is underlined text[/u]')
     end
   end
 
