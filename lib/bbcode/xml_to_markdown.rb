@@ -9,6 +9,7 @@ module BBCode
       @quoted_post_from_post_id = opts[:quoted_post_from_post_id]
       @upload_md_from_file = opts[:upload_md_from_file]
       @url_replacement = opts[:url_replacement]
+      @allow_inline_code = opts.fetch(:allow_inline_code, false)
 
       @doc = Nokogiri::XML(xml)
       @list_stack = []
@@ -77,7 +78,7 @@ module BBCode
     def visit_CODE(xml_node, md_node)
       content = xml_node.content
 
-      if content.include?("\n")
+      if !@allow_inline_code || content.include?("\n")
         md_node.prefix = "```text\n"
         md_node.postfix = "\n```"
       else
@@ -242,18 +243,20 @@ module BBCode
     end
 
     def hoist_whitespaces!(markdown, text, prefix, postfix)
+      text.lstrip! if markdown.end_with?("\n")
+
       unless prefix.empty?
         if starts_with_whitespace?(text) && !ends_with_whitespace?(markdown)
           prefix = "#{text[0]}#{prefix}"
         end
-        text = text.lstrip
+        text.lstrip!
       end
 
       unless postfix.empty?
         if ends_with_whitespace?(text)
           postfix = "#{postfix}#{text[-1]}"
         end
-        text = text.rstrip
+        text.rstrip!
       end
 
       [text, prefix, postfix]

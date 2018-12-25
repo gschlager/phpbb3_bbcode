@@ -99,9 +99,29 @@ RSpec.describe BBCode::XmlToMarkdown do
   end
 
   context "code blocks" do
-    it "converts single line code blocks" do
-      xml = '<r><CODE><s>[code]</s>one line of code<e>[/code]</e></CODE></r>'
-      expect(convert(xml)).to eq('`one line of code`')
+    context "inline code blocks enabled" do
+      let(:opts) { { allow_inline_code: true } }
+
+      it "converts single line code blocks" do
+        xml = '<r><CODE><s>[code]</s>one line of code<e>[/code]</e></CODE></r>'
+        expect(convert(xml, opts)).to eq('`one line of code`')
+      end
+    end
+
+    context "inline code blocks disabled" do
+      it "converts single line code blocks" do
+        xml = '<r>foo <CODE><s>[code]</s>some code<e>[/code]</e></CODE> bar</r>'
+
+        expect(convert(xml)).to eq(<<~MD.chomp)
+          foo
+
+          ```text
+          some code
+          ```
+
+          bar
+        MD
+      end
     end
 
     it "converts multi-line code blocks" do
