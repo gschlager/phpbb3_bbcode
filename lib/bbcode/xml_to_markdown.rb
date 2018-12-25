@@ -211,6 +211,19 @@ module BBCode
       md_node.skip_children
     end
 
+    def visit_SIZE(xml_node, md_node)
+      size = to_i(xml_node.attr("size"))
+      return if size.nil?
+
+      if size.between?(1, 99)
+        md_node.prefix = '<small>'
+        md_node.postfix = '</small>'
+      elsif size.between?(101, 200)
+        md_node.prefix = '<big>'
+        md_node.postfix = '</big>'
+      end
+    end
+
     def text(xml_node, escape_markdown: true)
       text = CGI.unescapeHTML(xml_node.text)
       # text.gsub!(/[\\`*_{}\[\]()#+\-.!~]/) { |c| "\\#{c}" } if escape_markdown

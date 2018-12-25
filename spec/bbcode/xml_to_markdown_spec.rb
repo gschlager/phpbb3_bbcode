@@ -594,4 +594,40 @@ RSpec.describe BBCode::XmlToMarkdown do
       expect(convert(xml)).to eq('**bar**')
     end
   end
+
+  context "font size" do
+    it "converts sizes to either <small> or <big>" do
+      xml = <<~XML
+        <r><SIZE size="50"><s>[size=50]</s>very small<e>[/size]</e></SIZE><br/>
+        <SIZE size="85"><s>[size=85]</s>small<e>[/size]</e></SIZE><br/>
+        <SIZE size="150"><s>[size=150]</s>large<e>[/size]</e></SIZE><br/>
+        <SIZE size="200"><s>[size=200]</s>very large<e>[/size]</e></SIZE></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.rstrip)
+        <small>very small</small>
+        <small>small</small>
+        <big>large</big>
+        <big>very large</big>
+      MD
+    end
+
+    it "ignores invalid sizes" do
+      xml = <<~XML
+        <r><SIZE size="-50"><s>[size=-50]</s>negative number<e>[/size]</e></SIZE><br/>
+        <SIZE size="0"><s>[size=0]</s>zero<e>[/size]</e></SIZE><br/>
+        <SIZE size="300"><s>[size=300]</s>too large<e>[/size]</e></SIZE><br/>
+        <SIZE size="abc"><s>[size=abc]</s>not a number<e>[/size]</e></SIZE><br/>
+        <SIZE><s>[size]</s>no size<e>[/size]</e></SIZE></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.rstrip)
+        negative number
+        zero
+        too large
+        not a number
+        no size
+      MD
+    end
+  end
 end
