@@ -9,6 +9,12 @@ module BBCode
     # @return [Array<MarkdownNode>]
     attr_reader :children
 
+    # @return [Array<MarkdownNode>]
+    attr_accessor :previous_sibling
+
+    # @return [Array<MarkdownNode>]
+    attr_accessor :next_sibling
+
     # @return [String]
     attr_accessor :text
 
@@ -42,7 +48,11 @@ module BBCode
       @parent = parent
       @children = []
 
-      @parent.children << self if parent
+      if @parent
+        @previous_sibling = @parent.children.last
+        @previous_sibling.next_sibling = self if @previous_sibling
+        @parent.children << self
+      end
     end
 
     def enclosed_with=(text)

@@ -153,6 +153,8 @@ module BBCode
         br_count += 1
       end
 
+      br_count = 1 if md_node.parent.prefix_children
+
       if ELEMENTS_WITH_EXPLICIT_LINEBREAKS.include?(xml_node.parent&.name)
         md_node.text = "\\"
         md_node.postfix_newlines = 1
@@ -245,9 +247,9 @@ module BBCode
         text = md_node.children&.any? ? to_markdown(md_node) : md_node.text
         postfix = md_node.postfix
 
-        prefix = md_parent.prefix_children if md_parent.prefix_children && !md_node.text.empty?
+        prefix = md_parent.prefix_children if prefix_children?(md_parent, md_node)
 
-        unless md_node.xml_node_name == "CODE"
+        if md_node.xml_node_name != "CODE"
           text, prefix, postfix = hoist_whitespaces!(markdown, text, prefix, postfix)
         end
 
@@ -279,6 +281,10 @@ module BBCode
       end
 
       [text, prefix, postfix]
+    end
+
+    def prefix_children?(md_parent, md_node)
+      md_parent.prefix_children && (!md_node.text.empty? || md_node.previous_sibling&.xml_node_name == 'br')
     end
 
     def add_newlines!(markdown, required_newline_count)

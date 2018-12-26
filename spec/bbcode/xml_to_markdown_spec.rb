@@ -386,12 +386,50 @@ RSpec.describe BBCode::XmlToMarkdown do
       MD
     end
 
+    it "converts quote with line breaks" do
+      xml = <<~XML
+        <r><QUOTE><s>[quote]</s>First paragraph<br/>
+        <br/>
+        Second paragraph<br/>
+        <br/>
+        Third paragraph<e>[/quote]</e></QUOTE></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.chomp)
+        > First paragraph
+        >
+        > Second paragraph
+        >
+        > Third paragraph
+      MD
+    end
+
     it "converts quote with author attribute" do
       xml = '<r><QUOTE author="Mr. Blobby"><s>[quote="Mr. Blobby"]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
 
       expect(convert(xml)).to eq(<<~MD.chomp)
         [quote="Mr. Blobby"]
         Lorem ipsum
+        [/quote]
+      MD
+    end
+
+    it "converts quote with author attribute and line breaks" do
+      xml = <<~XML
+        <r><QUOTE author="Mr. Blobby"><s>[quote="Mr. Blobby"]</s>First paragraph<br/>
+        <br/>
+        Second paragraph<br/>
+        <br/>
+        Third paragraph<e>[/quote]</e></QUOTE></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.chomp)
+        [quote="Mr. Blobby"]
+        First paragraph
+
+        Second paragraph
+
+        Third paragraph
         [/quote]
       MD
     end
