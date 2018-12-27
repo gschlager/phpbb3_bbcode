@@ -25,10 +25,13 @@ module BBCode
     attr_accessor :postfix
 
     # @return [Integer]
-    attr_accessor :prefix_newlines
+    attr_accessor :prefix_linebreaks
 
     # @return [Integer]
-    attr_accessor :postfix_newlines
+    attr_accessor :postfix_linebreaks
+
+    # @return [Boolean]
+    attr_accessor :force_hard_linebreak
 
     # @return [String]
     attr_accessor :prefix_children
@@ -42,8 +45,9 @@ module BBCode
       @prefix = ""
       @postfix = ""
 
-      @prefix_newlines = 0
-      @postfix_newlines = 0
+      @prefix_linebreaks = 0
+      @postfix_linebreaks = 0
+      @force_hard_linebreak = false
 
       @parent = parent
       @children = []

@@ -11,6 +11,11 @@ RSpec.describe BBCode::XmlToMarkdown do
     expect(convert(xml)).to eq('unformatted text')
   end
 
+  it "converts nested formatting" do
+    xml = '<r><I><s>[i]</s>this is italic<B><s>[b]</s> and bold<e>[/b]</e></B> text<e>[/i]</e></I></r>'
+    expect(convert(xml)).to eq('_this is italic **and bold** text_')
+  end
+
   context "bold text" do
     it "converts bold text" do
       xml = '<r><B><s>[b]</s>this is bold text<e>[/b]</e></B></r>'
@@ -29,7 +34,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       XML
 
       expect(convert(xml)).to eq(<<~MD.chomp)
-        **this is bold text\\
+        **this is bold text
         on two lines**
 
         **this is bold text\\
@@ -63,7 +68,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       XML
 
       expect(convert(xml)).to eq(<<~MD.chomp)
-        _this is italic text\\
+        _this is italic text
         on two lines_
 
         _this is italic text\\
@@ -97,7 +102,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       XML
 
       expect(convert(xml)).to eq(<<~MD.chomp)
-        [u]this is underlined text\\
+        [u]this is underlined text
         on two lines[/u]
 
         [u]this is underlined text\\
@@ -157,7 +162,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       MD
     end
 
-    it "adds leading and trailing newlines to code blocks" do
+    it "adds leading and trailing linebreaks to code blocks" do
       xml = <<~XML
         <r>text before code block<br/>
 
@@ -233,7 +238,7 @@ RSpec.describe BBCode::XmlToMarkdown do
       MD
     end
 
-    it "adds leading and trailing newlines to lists if needed" do
+    it "adds leading and trailing linebreaks to lists if needed" do
       xml = <<~XML
         <r>foo
         <LIST><s>[list]</s>
@@ -392,6 +397,7 @@ RSpec.describe BBCode::XmlToMarkdown do
         <br/>
         Second paragraph<br/>
         <br/>
+        <br/>
         Third paragraph<e>[/quote]</e></QUOTE></r>
       XML
 
@@ -399,7 +405,8 @@ RSpec.describe BBCode::XmlToMarkdown do
         > First paragraph
         >
         > Second paragraph
-        >
+        > \\
+        > \\
         > Third paragraph
       MD
     end
@@ -595,24 +602,60 @@ RSpec.describe BBCode::XmlToMarkdown do
     end
   end
 
-  it "converts line breaks" do
-    xml = <<~XML
+  context "line breaks" do
+    it "converts line breaks" do
+      xml = <<~XML
       <t>Lorem ipsum dolor sit amet.<br/>
       <br/>
       Consetetur sadipscing elitr.<br/>
       <br/>
       <br/>
-      Sed diam nonumy eirmod tempor.</t>
-    XML
+      Sed diam nonumy eirmod tempor.<br/>
+      <br/>
+      <br/>
+      <br/>
+      <br/>
+      Invidunt ut labore et dolore.</t>
+      XML
 
-    expect(convert(xml)).to eq(<<~MD.chomp)
-      Lorem ipsum dolor sit amet.
+      expect(convert(xml)).to eq(<<~MD.chomp)
+        Lorem ipsum dolor sit amet.
 
-      Consetetur sadipscing elitr.
+        Consetetur sadipscing elitr.
+        \\
+        \\
+        Sed diam nonumy eirmod tempor.
+        \\
+        \\
+        \\
+        \\
+        Invidunt ut labore et dolore.
+      MD
+    end
 
-      <br>
-      Sed diam nonumy eirmod tempor.
-    MD
+    it "uses hard linebreaks when tradition line breaks are enabled" do
+      xml = <<~XML
+      <t>Lorem ipsum dolor sit amet.<br/>
+      Consetetur sadipscing elitr.<br/>
+      <br/>
+      Sed diam nonumy eirmod tempor.<br/>
+      <br/>
+      <br/>
+      <br/>
+      Invidunt ut labore et dolore.</t>
+      XML
+
+      expect(convert(xml, traditional_linebreaks: true)).to eq(<<~MD.chomp)
+        Lorem ipsum dolor sit amet.\\
+        Consetetur sadipscing elitr.\\
+        \\
+        Sed diam nonumy eirmod tempor.\\
+        \\
+        \\
+        \\
+        Invidunt ut labore et dolore.
+      MD
+    end
   end
 
   context "whitespace" do

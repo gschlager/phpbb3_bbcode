@@ -10,6 +10,7 @@ module BBCode
       @upload_md_from_file = opts[:upload_md_from_file]
       @url_replacement = opts[:url_replacement]
       @allow_inline_code = opts.fetch(:allow_inline_code, false)
+      @traditional_linebreaks = opts.fetch(:traditional_linebreaks, false)
 
       @doc = Nokogiri::XML(xml)
       @list_stack = []
@@ -27,7 +28,7 @@ module BBCode
 
     IGNORED_ELEMENTS = ["s", "e", "i"]
     ELEMENTS_WITHOUT_WHITESPACES = ["LIST", "LI"]
-    ELEMENTS_WITH_EXPLICIT_LINEBREAKS = ["B", "I", "U"]
+    ELEMENTS_WITH_HARD_LINEBREAKS = ["B", "I", "U"]
 
     def preprocess_xml
       @doc.traverse do |node|
@@ -46,7 +47,7 @@ module BBCode
       visitor_exists = respond_to?(visitor, include_all: true)
 
       if visitor_exists && md_parent.children
-        md_node = MarkdownNode.new(xml_node_name: xml_node.name, parent: md_parent)
+        md_node = create_node(xml_node, md_parent)
         send(visitor, xml_node, md_node)
       end
 
@@ -56,6 +57,15 @@ module BBCode
       if respond_to?(after_hook, include_all: true)
         send(after_hook, xml_node, md_node)
       end
+    end
+
+    def create_node(xml_node, md_parent)
+      if xml_node.name == "br"
+        last_child = md_parent.children.last
+        return last_child if last_child&.xml_node_name == "br"
+      end
+
+      MarkdownNode.new(xml_node_name: xml_node.name, parent: md_parent)
     end
 
     def visit_text(xml_node, md_node)
@@ -93,11 +103,11 @@ module BBCode
 
       md_node.text = content.rstrip
       md_node.skip_children
-      md_node.prefix_newlines = md_node.postfix_newlines = 2
+      md_node.prefix_linebreaks = md_node.postfix_linebreaks = 2
     end
 
     def visit_LIST(xml_node, md_node)
-      md_node.prefix_newlines = md_node.postfix_newlines = @list_stack.size == 0 ? 2 : 1
+      md_node.prefix_linebreaks = md_node.postfix_linebreaks = @list_stack.size == 0 ? 2 : 1
       @list_stack << {
         unordered: xml_node.attribute('type').nil?,
         item_count: 0
@@ -118,12 +128,12 @@ module BBCode
       symbol = list[:unordered] ? '*' : "#{list[:item_count]}."
 
       md_node.prefix = "#{indentation}#{symbol} "
-      md_node.postfix_newlines = 1
+      md_node.postfix_linebreaks = 1
     end
 
     def visit_IMG(xml_node, md_node)
       md_node.text = "![](#{xml_node.attribute('src')})"
-      md_node.prefix_newlines = md_node.postfix_newlines = 2
+      md_node.prefix_linebreaks = md_node.postfix_linebreaks = 2
       md_node.skip_children
     end
 
@@ -147,24 +157,10 @@ module BBCode
     end
 
     def visit_br(xml_node, md_node)
-      br_count = 0
-      md_node.parent.children.reverse.each do |child|
-        break if child.xml_node_name != "br"
-        br_count += 1
-      end
+      md_node.postfix_linebreaks += 1
 
-      br_count = 1 if md_node.parent.prefix_children
-
-      if ELEMENTS_WITH_EXPLICIT_LINEBREAKS.include?(xml_node.parent&.name)
-        md_node.text = "\\"
-        md_node.postfix_newlines = 1
-      else
-        if br_count > 2
-          md_node.text = "<br>"
-          md_node.postfix_newlines = 1
-        else
-          md_node.postfix_newlines = br_count
-        end
+      if md_node.postfix_linebreaks > 1 && ELEMENTS_WITH_HARD_LINEBREAKS.include?(xml_node.parent&.name)
+        md_node.force_hard_linebreak = true
       end
     end
 
@@ -186,7 +182,7 @@ module BBCode
         md_node.prefix_children = "> "
       end
 
-      md_node.prefix_newlines = md_node.postfix_newlines = 2
+      md_node.prefix_linebreaks = md_node.postfix_linebreaks = 2
     end
 
     def quoted_post(xml_node)
@@ -215,7 +211,7 @@ module BBCode
       index = to_i(xml_node.attr("index"))
 
       md_node.text = @upload_md_from_file.call(filename, index)
-      md_node.prefix_newlines = md_node.postfix_newlines = 1
+      md_node.prefix_linebreaks = md_node.postfix_linebreaks = 1
       md_node.skip_children
     end
 
@@ -247,17 +243,20 @@ module BBCode
         text = md_node.children&.any? ? to_markdown(md_node) : md_node.text
         postfix = md_node.postfix
 
-        prefix = md_parent.prefix_children if prefix_children?(md_parent, md_node)
+        parent_prefix = prefix_from_parent(md_parent)
+        prefix = parent_prefix if parent_prefix && !md_node.text.empty?
 
         if md_node.xml_node_name != "CODE"
           text, prefix, postfix = hoist_whitespaces!(markdown, text, prefix, postfix)
         end
 
-        add_newlines!(markdown, md_node.prefix_newlines)
+        force_hard_linebreak = force_hard_linebreak?(md_node)
+
+        add_linebreaks!(markdown, md_node.prefix_linebreaks, force_hard_linebreak, parent_prefix)
         markdown << prefix
         markdown << text
         markdown << postfix
-        add_newlines!(markdown, md_node.postfix_newlines)
+        add_linebreaks!(markdown, md_node.postfix_linebreaks, force_hard_linebreak, parent_prefix)
       end
 
       markdown
@@ -283,18 +282,36 @@ module BBCode
       [text, prefix, postfix]
     end
 
+    def prefix_from_parent(md_parent)
+      while md_parent
+        return md_parent.prefix_children if md_parent.prefix_children
+        md_parent = md_parent.parent
+      end
+    end
+
     def prefix_children?(md_parent, md_node)
       md_parent.prefix_children && (!md_node.text.empty? || md_node.previous_sibling&.xml_node_name == 'br')
     end
 
-    def add_newlines!(markdown, required_newline_count)
-      return if required_newline_count == 0 || markdown.empty?
+    def force_hard_linebreak?(md_node)
+      @traditional_linebreaks || md_node.force_hard_linebreak
+    end
 
-      missing_newlines = required_newline_count - markdown[/\n*\z/].length
+    def add_linebreaks!(markdown, required_linebreak_count, force_hard_linebreak, prefix = nil)
+      return if required_linebreak_count == 0 || markdown.empty?
 
-      if missing_newlines > 0
-        markdown.rstrip!
-        markdown << ("\n" * required_newline_count)
+      existing_linebreak_count = markdown[/(?:\\?\n)*\z/].count("\n")
+      return if required_linebreak_count - existing_linebreak_count <= 0
+
+      markdown.gsub!(/\s*(?:\\?\n)*\z/, '')
+      hard_linebreak_start_index = required_linebreak_count > 2 ? 1 : 2
+
+      required_linebreak_count.times do |index|
+        use_hard_linebreak = force_hard_linebreak || index >= hard_linebreak_start_index
+        linebreak = use_hard_linebreak ? "\\\n" : "\n"
+
+        markdown << (use_hard_linebreak ? prefix : prefix.rstrip) if index > 0 && prefix
+        markdown << linebreak
       end
     end
 
