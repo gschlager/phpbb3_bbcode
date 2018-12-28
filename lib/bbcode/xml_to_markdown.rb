@@ -244,7 +244,10 @@ module BBCode
         postfix = md_node.postfix
 
         parent_prefix = prefix_from_parent(md_parent)
-        prefix = parent_prefix if parent_prefix && !md_node.text.empty?
+
+        if parent_prefix && md_node.xml_node_name != "br" && (md_parent.prefix_children || !markdown.empty?)
+          prefix = "#{parent_prefix}#{prefix}"
+        end
 
         if md_node.xml_node_name != "CODE"
           text, prefix, postfix = hoist_whitespaces!(markdown, text, prefix, postfix)
@@ -289,10 +292,6 @@ module BBCode
       end
     end
 
-    def prefix_children?(md_parent, md_node)
-      md_parent.prefix_children && (!md_node.text.empty? || md_node.previous_sibling&.xml_node_name == 'br')
-    end
-
     def force_hard_linebreak?(md_node)
       @traditional_linebreaks || md_node.force_hard_linebreak
     end
@@ -310,7 +309,7 @@ module BBCode
         use_hard_linebreak = force_hard_linebreak || index >= hard_linebreak_start_index
         linebreak = use_hard_linebreak ? "\\\n" : "\n"
 
-        markdown << (use_hard_linebreak ? prefix : prefix.rstrip) if index > 0 && prefix
+        markdown << (use_hard_linebreak ? prefix : prefix.rstrip) if prefix && index > 0
         markdown << linebreak
       end
     end

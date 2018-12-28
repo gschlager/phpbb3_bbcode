@@ -411,6 +411,30 @@ RSpec.describe BBCode::XmlToMarkdown do
       MD
     end
 
+    it "converts quote with line breaks and nested formatting" do
+      xml = <<~XML
+        <r><QUOTE><s>[quote]</s>
+        <I><s>[i]</s>this is italic<br/>
+        <B><s>[b]</s>and bold<br/>
+        text<br/>
+        <e>[/b]</e></B> on multiple<br/>
+        <br/>
+        <br/>
+        lines<e>[/i]</e></I>
+        <e>[/quote]</e></QUOTE></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.chomp)
+        > _this is italic
+        > **and bold
+        > text**
+        > on multiple\\
+        > \\
+        > \\
+        > lines_
+      MD
+    end
+
     it "converts quote with author attribute" do
       xml = '<r><QUOTE author="Mr. Blobby"><s>[quote="Mr. Blobby"]</s>Lorem ipsum<e>[/quote]</e></QUOTE></r>'
 
