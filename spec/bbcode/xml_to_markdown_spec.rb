@@ -291,6 +291,18 @@ RSpec.describe BBCode::XmlToMarkdown do
           * Option 2.2
       MD
     end
+
+    it "handles nested elements and linebreaks in list items" do
+      xml = <<~XML
+        <r><LIST><s>[list]</s><LI><s>[*]</s>some text <B><s>[b]</s><I><s>[i]</s>foo<e>[/i]</e></I><e>[/b]</e></B><br/>
+        or <B><s>[b]</s><I><s>[i]</s>bar<e>[/i]</e></I><e>[/b]</e></B> more text</LI><e>[/list]</e></LIST></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.chomp)
+        * some text **_foo_**
+        or **_bar_** more text
+      MD
+    end
   end
 
   context "images" do

@@ -27,19 +27,27 @@ module BBCode
     private
 
     IGNORED_ELEMENTS = ["s", "e", "i"]
-    ELEMENTS_WITHOUT_WHITESPACES = ["LIST", "LI"]
+    ELEMENTS_WITHOUT_LEADING_WHITESPACES = ["LIST", "LI"]
     ELEMENTS_WITH_HARD_LINEBREAKS = ["B", "I", "U"]
 
     def preprocess_xml
       @doc.traverse do |node|
         if node.is_a? Nokogiri::XML::Text
           node.content = node.content.gsub(/\A\n+\s*/, "")
-          node.content = node.content.strip if ELEMENTS_WITHOUT_WHITESPACES.include?(node.parent&.name)
+          node.content = node.content.lstrip if remove_leading_whitespaces?(node)
           node.remove if node.content.empty?
         elsif IGNORED_ELEMENTS.include?(node.name)
           node.remove
         end
       end
+    end
+
+    def remove_leading_whitespaces?(xml_node)
+      parent = xml_node.parent
+      return false unless parent
+
+      ELEMENTS_WITHOUT_LEADING_WHITESPACES.include?(parent.name) &&
+        parent.children.first == xml_node
     end
 
     def visit(xml_node, md_parent)
@@ -69,7 +77,7 @@ module BBCode
     end
 
     def visit_text(xml_node, md_node)
-      md_node.text << text(xml_node).gsub("\n", "")
+      md_node.text << text(xml_node)
     end
 
     def visit_B(xml_node, md_node)
