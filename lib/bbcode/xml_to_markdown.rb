@@ -218,7 +218,7 @@ module BBCode
       filename = xml_node.attr("filename")
       index = to_i(xml_node.attr("index"))
 
-      md_node.text = @upload_md_from_file.call(filename, index)
+      md_node.text = @upload_md_from_file.call(filename, index) if @upload_md_from_file
       md_node.prefix_linebreaks = md_node.postfix_linebreaks = 1
       md_node.skip_children
     end
