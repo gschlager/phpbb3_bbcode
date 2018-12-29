@@ -29,6 +29,7 @@ module BBCode
     IGNORED_ELEMENTS = ["s", "e", "i"]
     ELEMENTS_WITHOUT_LEADING_WHITESPACES = ["LIST", "LI"]
     ELEMENTS_WITH_HARD_LINEBREAKS = ["B", "I", "U"]
+    EXPLICIT_LINEBREAK_THRESHOLD = 2
 
     def preprocess_xml
       @doc.traverse do |node|
@@ -112,10 +113,13 @@ module BBCode
       md_node.text = content.rstrip
       md_node.skip_children
       md_node.prefix_linebreaks = md_node.postfix_linebreaks = 2
+      md_node.prefix_linebreak_type = BBCode::LINEBREAK_HTML
     end
 
     def visit_LIST(xml_node, md_node)
       md_node.prefix_linebreaks = md_node.postfix_linebreaks = @list_stack.size == 0 ? 2 : 1
+      md_node.prefix_linebreak_type = BBCode::LINEBREAK_HTML if @list_stack.size == 0
+
       @list_stack << {
         unordered: xml_node.attribute('type').nil?,
         item_count: 0
@@ -168,7 +172,7 @@ module BBCode
       md_node.postfix_linebreaks += 1
 
       if md_node.postfix_linebreaks > 1 && ELEMENTS_WITH_HARD_LINEBREAKS.include?(xml_node.parent&.name)
-        md_node.force_hard_linebreak = true
+        md_node.postfix_linebreak_type = BBCode::LINEBREAK_HARD
       end
     end
 
@@ -191,6 +195,7 @@ module BBCode
       end
 
       md_node.prefix_linebreaks = md_node.postfix_linebreaks = 2
+      md_node.prefix_linebreak_type = BBCode::LINEBREAK_HTML
     end
 
     def quoted_post(xml_node)
@@ -261,13 +266,11 @@ module BBCode
           text, prefix, postfix = hoist_whitespaces!(markdown, text, prefix, postfix)
         end
 
-        force_hard_linebreak = force_hard_linebreak?(md_node)
-
-        add_linebreaks!(markdown, md_node.prefix_linebreaks, force_hard_linebreak, parent_prefix)
+        add_linebreaks!(markdown, md_node.prefix_linebreaks, md_node.prefix_linebreak_type, parent_prefix)
         markdown << prefix
         markdown << text
         markdown << postfix
-        add_linebreaks!(markdown, md_node.postfix_linebreaks, force_hard_linebreak, parent_prefix)
+        add_linebreaks!(markdown, md_node.postfix_linebreaks, md_node.postfix_linebreak_type, parent_prefix)
       end
 
       markdown
@@ -300,26 +303,44 @@ module BBCode
       end
     end
 
-    def force_hard_linebreak?(md_node)
-      @traditional_linebreaks || md_node.force_hard_linebreak
-    end
-
-    def add_linebreaks!(markdown, required_linebreak_count, force_hard_linebreak, prefix = nil)
+    def add_linebreaks!(markdown, required_linebreak_count, linebreak_type, prefix = nil)
       return if required_linebreak_count == 0 || markdown.empty?
 
-      existing_linebreak_count = markdown[/(?:\\?\n)*\z/].count("\n")
-      return if required_linebreak_count - existing_linebreak_count <= 0
+      existing_linebreak_count = markdown[/(?:\\?\n|<br>\n)*\z/].count("\n")
 
-      markdown.gsub!(/\s*(?:\\?\n)*\z/, '')
-      hard_linebreak_start_index = required_linebreak_count > 2 ? 1 : 2
+      if linebreak_type == BBCode::LINEBREAK_HTML
+        max_linebreak_count = [existing_linebreak_count, required_linebreak_count - 1].max + 1
+        required_linebreak_count = max_linebreak_count if max_linebreak_count > EXPLICIT_LINEBREAK_THRESHOLD
+      end
+
+      return if existing_linebreak_count >= required_linebreak_count
+
+      rstrip!(markdown)
+      alternative_linebreak_start_index = required_linebreak_count > EXPLICIT_LINEBREAK_THRESHOLD ? 1 : 2
 
       required_linebreak_count.times do |index|
-        use_hard_linebreak = force_hard_linebreak || index >= hard_linebreak_start_index
-        linebreak = use_hard_linebreak ? "\\\n" : "\n"
+        linebreak = linebreak(linebreak_type, index, alternative_linebreak_start_index, required_linebreak_count)
 
-        markdown << (use_hard_linebreak ? prefix : prefix.rstrip) if prefix && index > 0
+        markdown << (linebreak == "\n" ? prefix.rstrip : prefix) if prefix && index > 0
         markdown << linebreak
       end
+    end
+
+    def rstrip!(markdown)
+      markdown.gsub!(/\s*(?:\\?\n|<br>\n)*\z/, '')
+    end
+
+    def linebreak(linebreak_type, linebreak_index, alternative_linebreak_start_index, required_linebreak_count)
+      use_alternative_linebreak = linebreak_index >= alternative_linebreak_start_index
+      is_last_linebreak = linebreak_index + 1 == required_linebreak_count
+
+      return "<br>\n" if linebreak_type == BBCode::LINEBREAK_HTML &&
+        use_alternative_linebreak && is_last_linebreak
+
+      return "\\\n" if linebreak_type == BBCode::LINEBREAK_HARD ||
+        @traditional_linebreaks || use_alternative_linebreak
+
+      "\n"
     end
 
     def starts_with_whitespace?(text)

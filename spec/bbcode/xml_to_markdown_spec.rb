@@ -692,6 +692,56 @@ RSpec.describe BBCode::XmlToMarkdown do
         Invidunt ut labore et dolore.
       MD
     end
+
+    it "uses <br> in front of block elements" do
+      xml = <<~XML
+        <r>text before 4 empty lines<br/>
+        <br/>
+        <br/>
+        <br/>
+
+        <CODE><s>[code]</s>some code<e>[/code]</e></CODE>
+        text before 3 empty lines<br/>
+        <br/>
+        <br/>
+
+        <LIST><s>[list]</s>
+        <LI><s>[*]</s> item 1</LI>
+        <LI><s>[*]</s> item 2</LI>
+        <e>[/list]</e></LIST>
+        text before 2 empty lines<br/>
+        <br/>
+
+        <LIST><s>[list]</s>
+        <LI><s>[*]</s> item 1</LI>
+        <LI><s>[*]</s> item 2</LI>
+        <e>[/list]</e></LIST></r>
+      XML
+
+      expect(convert(xml)).to eq(<<~MD.chomp)
+        text before 4 empty lines
+        \\
+        \\
+        \\
+        <br>
+        ```text
+        some code
+        ```
+
+        text before 3 empty lines
+        \\
+        \\
+        <br>
+        * item 1
+        * item 2
+
+        text before 2 empty lines
+        \\
+        <br>
+        * item 1
+        * item 2
+      MD
+    end
   end
 
   context "whitespace" do

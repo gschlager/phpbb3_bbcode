@@ -1,4 +1,8 @@
 module BBCode
+  LINEBREAK_AUTO = :auto
+  LINEBREAK_HARD = :hard
+  LINEBREAK_HTML = :html
+
   class MarkdownNode
     # @return [String]
     attr_reader :xml_node_name
@@ -30,8 +34,11 @@ module BBCode
     # @return [Integer]
     attr_accessor :postfix_linebreaks
 
-    # @return [Boolean]
-    attr_accessor :force_hard_linebreak
+    # @return [Symbol]
+    attr_accessor :prefix_linebreak_type
+
+    # @return [Symbol]
+    attr_accessor :postfix_linebreak_type
 
     # @return [String]
     attr_accessor :prefix_children
@@ -47,7 +54,9 @@ module BBCode
 
       @prefix_linebreaks = 0
       @postfix_linebreaks = 0
-      @force_hard_linebreak = false
+
+      @prefix_linebreak_type = BBCode::LINEBREAK_AUTO
+      @postfix_linebreak_type = BBCode::LINEBREAK_AUTO
 
       @parent = parent
       @children = []
